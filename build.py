@@ -79,6 +79,22 @@ def rewrite_hymn_links(html: str) -> str:
     return html
 
 
+def rewrite_base(html: str, key: str, depth: int) -> str:
+    """Rewrite the absolute `<base href="/KEY/">` into a *relative* one so
+    the site works under any subpath — root (localhost, custom domain) or
+    a project subpath (GitHub Pages: /repo-name/).
+
+    depth = number of folder levels the page sits below /KEY/.
+      TOC     is at /KEY/index.html            -> depth 0 -> base "./"
+      hymn 5  is at /KEY/hymn/5/index.html     -> depth 2 -> base "../../"
+      zine    is at /KEY/zine/index.html       -> depth 1 -> base "../"
+      print   is at /KEY/print/index.html      -> depth 1 -> base "../"
+      qr      is at /KEY/qr/index.html         -> depth 1 -> base "../"
+    """
+    relative = "./" if depth == 0 else "../" * depth
+    return html.replace(f'<base href="/{key}/">', f'<base href="{relative}">')
+
+
 def landing_page() -> str:
     """A friendly page shown to anyone who visits the root of the site."""
     return (
@@ -122,26 +138,28 @@ def build() -> None:
         write(f"{key_dir}/qr-code.png", server.QR_PATH.read_bytes(), key)
 
     # The hymnal TOC — becomes /{key}/index.html
-    write(f"{key_dir}/index.html", rewrite_hymn_links(server.render_toc(hymns, key)), key)
+    toc_html = rewrite_hymn_links(server.render_toc(hymns, key))
+    write(f"{key_dir}/index.html", rewrite_base(toc_html, key, 0), key)
 
     # Each hymn — /{key}/hymn/N/index.html
     for idx, (number, _title, filepath) in enumerate(hymns):
         title, verses = server.parse_hymn(filepath)
         prev_n = hymns[idx - 1][0] if idx > 0 else None
         next_n = hymns[idx + 1][0] if idx < len(hymns) - 1 else None
-        html = server.render_hymn_page(number, title, verses, prev_n, next_n, key)
-        write(f"{key_dir}/hymn/{number}/index.html", rewrite_hymn_links(html), key)
+        html = rewrite_hymn_links(server.render_hymn_page(number, title, verses, prev_n, next_n, key))
+        write(f"{key_dir}/hymn/{number}/index.html", rewrite_base(html, key, 2), key)
         print(f"  #{number:>3}  {title}")
 
     # Print booklet — /{key}/print/index.html
-    write(f"{key_dir}/print/index.html", rewrite_hymn_links(server.render_print_all(hymns, key)), key)
+    print_html = rewrite_hymn_links(server.render_print_all(hymns, key))
+    write(f"{key_dir}/print/index.html", rewrite_base(print_html, key, 1), key)
 
     # Zine — /{key}/zine/index.html (only if zine.txt exists)
     zine = server.parse_zine()
     if zine is not None:
         title, sections = zine
-        html = server.render_zine_page(title, sections, key)
-        write(f"{key_dir}/zine/index.html", rewrite_hymn_links(html), key)
+        html = rewrite_hymn_links(server.render_zine_page(title, sections, key))
+        write(f"{key_dir}/zine/index.html", rewrite_base(html, key, 1), key)
 
     # QR page — /{key}/qr/index.html.
     # The URL baked into the QR viewer's caption needs to point at the
@@ -154,11 +172,8 @@ def build() -> None:
         display_url = f"{public_url}/{key}/"
     else:
         display_url = f"https://your-site.example/{key}/"
-    write(
-        f"{key_dir}/qr/index.html",
-        rewrite_hymn_links(server.render_qr_page(display_url, server.QR_PATH.exists(), key)),
-        key,
-    )
+    qr_html = rewrite_hymn_links(server.render_qr_page(display_url, server.QR_PATH.exists(), key))
+    write(f"{key_dir}/qr/index.html", rewrite_base(qr_html, key, 1), key)
 
     print()
     print(f"Built {sum(1 for _ in DIST.rglob('*') if _.is_file())} files into ./dist")
