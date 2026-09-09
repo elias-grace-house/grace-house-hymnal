@@ -46,6 +46,16 @@ congregation only sees the lyrics. On the MUSICIAN mirror
 where they appear in the text, so the musician sees where each chord
 change lands. You can convert songs to chorded format one at a time;
 songs without markers just render as lyrics on both views.
+
+Musician notes (optional, musician view only):
+    Notes
+    Capo 3 for original key
+    Slower on verse 3
+
+Add a block labeled "Notes" (or "Notes:") at the end of the hymn file.
+Anything in that block renders as a small musician-only footer on
+/musician/hymn/N/ — capo positions, key change reminders, tempo cues.
+The public view skips it entirely.
 """
 from __future__ import annotations
 
@@ -405,6 +415,31 @@ article h1 {
   padding: 0 1px;
   white-space: nowrap;
 }
+
+/* Musician-only "Notes" block — capo, tempo, key change reminders. */
+.notes {
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 2px dashed rgba(10, 10, 10, 0.35);
+}
+.notes-label {
+  margin: 0 0 10px;
+  font-family: 'Big Shoulders Stencil Text', 'Impact', sans-serif;
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: #f01a8b;
+}
+.notes-body {
+  font-family: 'Special Elite', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #0a0a0a;
+  opacity: 0.9;
+}
+.notes-body p { margin: 0 0 6px; }
+.notes-body p:last-child { margin-bottom: 0; }
 
 /* Hide print-only elements on screen */
 .print-slug { display: none; }
@@ -816,10 +851,39 @@ def _verse_block_html(label: str, lines: list[str], show_chords: bool = False) -
 
 
 def render_hymn_page(number, title, verses, prev_n, next_n, key: str, musician: bool = False) -> str:
+    # Split off an optional Notes block (any block whose label is "Notes"
+    # or "Notes:" case-insensitively). Notes render ONLY on the musician
+    # view — capo positions, key change reminders, tempo cues, whatever
+    # the musician needs. The public never sees them.
+    regular_verses = []
+    notes_lines: list[str] = []
+    for label, lines in verses:
+        if label.strip().lower().rstrip(":").strip() in ("notes", "note"):
+            notes_lines = lines
+        else:
+            regular_verses.append((label, lines))
+
     verse_html = "\n".join(
         _verse_block_html(label, lines, show_chords=musician)
-        for label, lines in verses
+        for label, lines in regular_verses
     )
+
+    notes_html = ""
+    if musician and notes_lines:
+        # Notes are prose, not lyrics — strip any [X] tokens and render
+        # each non-empty line as its own paragraph.
+        rendered = "\n".join(
+            f"<p>{escape(CHORD_RE.sub('', ln).strip())}</p>"
+            for ln in notes_lines
+            if ln.strip()
+        )
+        notes_html = (
+            '<section class="notes">'
+            '<h3 class="notes-label">Notes</h3>'
+            f'<div class="notes-body">{rendered}</div>'
+            '</section>\n'
+        )
+
     # Links stay bare on public pages, prefixed with "musician/" on the mirror,
     # so the base href /{key}/ resolves them into the right subtree either way.
     hymn_prefix = "musician/hymn" if musician else "hymn"
@@ -843,6 +907,7 @@ def render_hymn_page(number, title, verses, prev_n, next_n, key: str, musician: 
         f"<h1>{escape(title)}</h1>\n"
         "</article>\n"
         f'<div class="verses">\n{verse_html}\n</div>\n'
+        f'{notes_html}'
         '<nav class="foot">\n'
         f"{prev_link}\n"
         f'<a class="home" href="{home_href}">INDEX</a>\n'
