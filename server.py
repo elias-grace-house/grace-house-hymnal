@@ -383,6 +383,13 @@ article h1 {
   font-size: 15px;
   line-height: 1.65;
   color: #0a0a0a;
+  /* Beige halo carves a clear zone around each letter so the dotted
+     background pattern doesn't crowd the type edges. `paint-order:
+     stroke fill` draws the halo behind the fill, keeping letters at
+     their original weight instead of thinning them. Chord tokens
+     inside .v-body inherit it too — pink fill, beige halo. */
+  -webkit-text-stroke: 1.5px #f2ede4;
+  paint-order: stroke fill;
 }
 .v-body .line { /* each lyric line; padding kicks in only on print */ }
 
@@ -601,6 +608,8 @@ main { position: relative; }
     font-size: 12pt !important;
     color: #000 !important;
     line-height: 1.2;
+    /* Paper has no dot pattern — nix the halo so print stays crisp. */
+    -webkit-text-stroke: 0 !important;
   }
 
   /* Tight lyric lines on paper (no more blank-space-for-handwriting;
