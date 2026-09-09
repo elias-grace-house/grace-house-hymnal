@@ -405,10 +405,6 @@ article h1 {
   padding: 0 1px;
   white-space: nowrap;
 }
-.verse.chorus .v-body .chord {
-  /* pink on the chorus's own pink accent bar clashes — go black */
-  color: #0a0a0a;
-}
 
 /* Hide print-only elements on screen */
 .print-slug { display: none; }
@@ -679,20 +675,24 @@ def render_toc(hymns, key: str, musician: bool = False) -> str:
         f"</a></li>"
         for (n, t, _) in hymns
     )
+    # Zine chip in the top-right, on BOTH views if zine.txt exists —
+    # the musician gets to the zine the same way the congregation does.
+    zine = parse_zine()
+    top_right = ""
+    if zine is not None:
+        zine_title, _ = zine
+        top_right = f'<a href="zine" class="zine-link">{escape(zine_title.upper())} →</a>'
+    # The foot chip swaps between "Musicians →" (from hymnal) and "← Hymnal"
+    # (from musicians), mirroring each other at the bottom of the TOC.
     if musician:
-        # Musician view: link back to the public hymnal in the top-right,
-        # no zine link, no self-referential foot link.
-        top_right = '<a href="." class="zine-link">← HYMNAL</a>'
         title_word = "MUSICIANS"
-        foot = ""
+        foot = (
+            '<div class="foot-actions">'
+            '<a href="." class="foot-link">← Hymnal</a>'
+            "</div>"
+        )
         page_title = "Musicians — Grace House Hymnal"
     else:
-        # Public view: zine chip (if any) top-right, "Musicians →" at the foot.
-        zine = parse_zine()
-        top_right = ""
-        if zine is not None:
-            zine_title, _ = zine
-            top_right = f'<a href="zine" class="zine-link">{escape(zine_title.upper())} →</a>'
         title_word = "HYMNAL"
         foot = (
             '<div class="foot-actions">'
