@@ -211,6 +211,12 @@ body {
   color: #0a0a0a;
   -webkit-font-smoothing: antialiased;
   -webkit-text-size-adjust: 100%;
+  /* Beige halo (background-colored outline) on every text element, so
+     the dotted background pattern never touches letter edges. Inherits
+     from body into everything below; elements with their own colored
+     background chips explicitly zero this out further down. */
+  -webkit-text-stroke: 3px #f2ede4;
+  paint-order: stroke fill;
   background-image:
     radial-gradient(circle at 12% 22%, rgba(0,0,0,0.5) 0.5px, transparent 1.5px),
     radial-gradient(circle at 34% 66%, rgba(0,0,0,0.4) 0.5px, transparent 1.5px),
@@ -393,13 +399,7 @@ article h1 {
   font-size: 15px;
   line-height: 1.65;
   color: #0a0a0a;
-  /* Beige halo carves a clear zone around each letter so the dotted
-     background pattern doesn't crowd the type edges. `paint-order:
-     stroke fill` draws the halo behind the fill, keeping letters at
-     their original weight instead of thinning them. Chord tokens
-     inside .v-body inherit it too — pink fill, beige halo. */
-  -webkit-text-stroke: 1.5px #f2ede4;
-  paint-order: stroke fill;
+  /* Beige halo is inherited from body — see the note there. */
 }
 .v-body .line { /* each lyric line; padding kicks in only on print */ }
 
@@ -437,13 +437,23 @@ article h1 {
   line-height: 1.55;
   color: #0a0a0a;
   opacity: 0.9;
-  /* Same beige halo the lyrics get, so the dotted background pattern
-     doesn't crowd letter edges here either. */
-  -webkit-text-stroke: 1.5px #f2ede4;
-  paint-order: stroke fill;
+  /* Beige halo is inherited from body — see the note there. */
 }
 .notes-body p { margin: 0 0 6px; }
 .notes-body p:last-child { margin-bottom: 0; }
+
+/* Elements with their own colored background chips don't sit on the
+   dotted beige, so the beige halo would just fatten them oddly.
+   Zero it out on those. (Chips: HYMNAL title tag, "14 songs" count,
+   the zine + foot chips, back-tag on hymn pages, the black NEXT arrow.) */
+.title-tag h1,
+.count-tag,
+.zine-link,
+.foot-link,
+.back-tag,
+.foot .nav-next {
+  -webkit-text-stroke: 0;
+}
 
 /* Hide print-only elements on screen */
 .print-slug { display: none; }
@@ -579,6 +589,10 @@ main { position: relative; }
     background: #ffffff !important;
     background-image: none !important;
     color: #000000 !important;
+    /* Paper has no dot pattern — nix the halo so print stays crisp.
+       Because the halo is now on body, resetting it here covers all
+       inheriting descendants in one go. */
+    -webkit-text-stroke: 0 !important;
   }
   main { max-width: none; padding: 0.55in 0.7in 0.55in 0.95in; }
 
