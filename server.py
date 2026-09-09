@@ -31,6 +31,21 @@ Labels: any short string (up to 6 chars, no spaces) on its own line
 at the start of a block. Examples: 1, 2, 3, C (chorus), B (bridge),
 Cd (coda), †. The order of blocks in the file is the order shown.
 Repeat a chorus by copy-pasting the C block between verses.
+
+Chords (optional, ChordPro-style, inline):
+    Amazing [G]grace how [C]sweet the [G]sound
+    That [G]saved a [Em]wretch like [D]me
+
+Put a chord in square brackets right before the syllable it plays
+on. Any characters except a closing bracket work inside (G, G7, Am,
+F#m, Csus4, G/B, N.C., etc.).
+
+On the PUBLIC hymnal (/hymn/N/), [X] markers are stripped out — the
+congregation only sees the lyrics. On the MUSICIAN mirror
+(/musician/hymn/N/), [X] markers render inline as pink brackets right
+where they appear in the text, so the musician sees where each chord
+change lands. You can convert songs to chorded format one at a time;
+songs without markers just render as lyrics on both views.
 """
 from __future__ import annotations
 
@@ -371,8 +386,25 @@ article h1 {
 }
 .v-body .line { /* each lyric line; padding kicks in only on print */ }
 
+/* Inline chord markers. On the musician view [G] stays in the text
+   right where it was typed, just colored pink so it pops. On the
+   public view chord tokens are stripped before rendering, so this
+   class never appears in the DOM there. */
+.v-body .chord {
+  font-family: 'Big Shoulders Stencil Text', 'Impact', sans-serif;
+  font-weight: 700;
+  color: #f01a8b;
+  letter-spacing: 0.5px;
+  padding: 0 1px;
+  white-space: nowrap;
+}
+.verse.chorus .v-body .chord {
+  /* pink on the chorus's own pink accent bar clashes — go black */
+  color: #0a0a0a;
+}
+
 /* Hide print-only elements on screen */
-.print-slug, .print-song-head { display: none; }
+.print-slug { display: none; }
 
 /* Footer nav */
 .foot {
@@ -510,8 +542,7 @@ main { position: relative; }
 
   /* Hide screen chrome we don't want on paper */
   .brand, .title-tag, .meta-strip,
-  .hymn-nav-top, .foot,
-  .print-only-web { display: none !important; }
+  .hymn-nav-top, .foot { display: none !important; }
 
   /* Per-hymn title block */
   article {
@@ -562,7 +593,7 @@ main { position: relative; }
     font-size: 15pt;
     line-height: 1;
     min-width: 22pt;
-    padding-top: 20pt;   /* aligns label baseline with first lyric line under chord space */
+    padding-top: 2pt;
     text-align: right;
   }
   .v-body {
@@ -572,25 +603,17 @@ main { position: relative; }
     line-height: 1.2;
   }
 
-  /* THE KEY BIT: blank space above every lyric line for handwriting chords */
+  /* Tight lyric lines on paper (no more blank-space-for-handwriting;
+     inline [X] chords, when present, print in black bracketed text). */
   .v-body .line {
-    padding-top: 20pt;
-    line-height: 1.2;
+    padding-top: 0;
+    line-height: 1.35;
   }
-
-  /* Multi-hymn print page: page-break between songs */
-  .print-song { break-after: page; page-break-after: always; }
-  .print-song:last-child { break-after: auto; page-break-after: auto; }
-
-  /* On the multi-hymn print page, dim the header of each song a little */
-  .print-song-head {
-    display: flex !important;
-    justify-content: space-between;
-    align-items: baseline;
-    font-family: 'Special Elite', monospace;
-    font-size: 10pt;
-    color: #000;
-    margin-bottom: 6pt;
+  .v-body .chord {
+    color: #000 !important;
+    font-family: 'Special Elite', 'Courier New', monospace !important;
+    font-weight: 700;
+    letter-spacing: 0.3pt;
   }
 }
 """
@@ -636,35 +659,51 @@ def page(title_text: str, body_html: str, key: str) -> str:
     )
 
 
-def render_toc(hymns, key: str) -> str:
+def render_toc(hymns, key: str, musician: bool = False) -> str:
+    # Musician mirror lives at /{key}/musician/, so its hymn links carry
+    # that prefix while the public TOC's links stay bare.
+    hymn_prefix = "musician/hymn" if musician else "hymn"
     items = "\n".join(
-        f'<li><a href="hymn/{n}">'
+        f'<li><a href="{hymn_prefix}/{n}">'
         f'<span class="num">{n}</span>'
         f'<span class="title">{escape(t)}</span>'
         f"</a></li>"
         for (n, t, _) in hymns
     )
-    # Zine link (only shown if zine.txt exists)
-    zine_link = ""
-    zine = parse_zine()
-    if zine is not None:
-        zine_title, _ = zine
-        zine_link = f'<a href="zine" class="zine-link">{escape(zine_title.upper())} →</a>'
+    if musician:
+        # Musician view: link back to the public hymnal in the top-right,
+        # no zine link, no self-referential foot link.
+        top_right = '<a href="." class="zine-link">← HYMNAL</a>'
+        title_word = "MUSICIANS"
+        foot = ""
+        page_title = "Musicians — Grace House Hymnal"
+    else:
+        # Public view: zine chip (if any) top-right, "Musicians →" at the foot.
+        zine = parse_zine()
+        top_right = ""
+        if zine is not None:
+            zine_title, _ = zine
+            top_right = f'<a href="zine" class="zine-link">{escape(zine_title.upper())} →</a>'
+        title_word = "HYMNAL"
+        foot = (
+            '<div class="foot-actions">'
+            '<a href="musician/" class="foot-link">Musicians →</a>'
+            "</div>"
+        )
+        page_title = "Grace House Hymnal"
     body = (
-        f"{zine_link}\n"
+        f"{top_right}\n"
         f"{BRAND_LOGO}\n"
-        '<div class="title-tag"><h1>HYMNAL</h1></div>\n'
+        f'<div class="title-tag"><h1>{title_word}</h1></div>\n'
         '<div class="meta-strip">'
         f'<span class="count-tag">{len(hymns)} songs</span>'
         '<div class="dash-rule"></div>'
         '<span class="hint">↓ tap one</span>'
         "</div>\n"
         f'<ol class="toc">\n{items}\n</ol>\n'
-        '<div class="foot-actions">'
-        '<a href="print" class="foot-link">Musician\'s booklet →</a>'
-        "</div>"
+        f"{foot}"
     )
-    return page("Grace House Hymnal", body, key)
+    return page(page_title, body, key)
 
 
 def render_zine_body(lines):
@@ -728,12 +767,37 @@ def render_zine_page(title, sections, key):
     return page(f"{title} — Grace House", body, key)
 
 
-def _verse_block_html(label: str, lines: list[str]) -> str:
+CHORD_RE = re.compile(r'\[([^\]]+)\]')
+
+
+def _render_line(line: str, show_chords: bool) -> str:
+    """Render one lyric line as HTML.
+
+    show_chords=False: [X] markers are STRIPPED and the line is rendered
+    as plain text. This is the public/congregation view.
+
+    show_chords=True: [X] markers are rendered INLINE as pink bracketed
+    labels right where they appear in the text — [G]word stays [G]word,
+    the chord doesn't float above. This is the musician view.
+    """
+    if not show_chords:
+        return f'<div class="line">{escape(CHORD_RE.sub("", line))}</div>'
+    if '[' not in line:
+        return f'<div class="line">{escape(line)}</div>'
+    # Build inline HTML: escape text runs, wrap chord tokens in <span class="chord">[X]</span>.
+    parts = CHORD_RE.split(line)  # alternates: text, chord, text, chord, ...
+    out = escape(parts[0])
+    for i in range(1, len(parts), 2):
+        chord = parts[i]
+        following = parts[i + 1] if i + 1 < len(parts) else ""
+        out += f'<span class="chord">[{escape(chord)}]</span>{escape(following)}'
+    return f'<div class="line has-chords">{out}</div>'
+
+
+def _verse_block_html(label: str, lines: list[str], show_chords: bool = False) -> str:
     is_chorus = label.upper() == "C"
     chorus_cls = " chorus" if is_chorus else ""
-    body_html = "\n".join(
-        f'<div class="line">{escape(ln)}</div>' for ln in lines
-    )
+    body_html = "\n".join(_render_line(ln, show_chords) for ln in lines)
     return (
         f'<section class="verse{chorus_cls}">'
         f'<span class="v-label">{escape(label)}</span>'
@@ -742,19 +806,27 @@ def _verse_block_html(label: str, lines: list[str]) -> str:
     )
 
 
-def render_hymn_page(number, title, verses, prev_n, next_n, key: str) -> str:
-    verse_html = "\n".join(_verse_block_html(label, lines) for label, lines in verses)
+def render_hymn_page(number, title, verses, prev_n, next_n, key: str, musician: bool = False) -> str:
+    verse_html = "\n".join(
+        _verse_block_html(label, lines, show_chords=musician)
+        for label, lines in verses
+    )
+    # Links stay bare on public pages, prefixed with "musician/" on the mirror,
+    # so the base href /{key}/ resolves them into the right subtree either way.
+    hymn_prefix = "musician/hymn" if musician else "hymn"
+    home_href = "musician/" if musician else "."
+    back_label = "← MUSICIANS" if musician else "← ALL HYMNS"
     prev_link = (
-        f'<a class="nav-prev" href="hymn/{prev_n}">← PREV</a>'
+        f'<a class="nav-prev" href="{hymn_prefix}/{prev_n}">← PREV</a>'
         if prev_n else '<span></span>'
     )
     next_link = (
-        f'<a class="nav-next" href="hymn/{next_n}">NEXT →</a>'
+        f'<a class="nav-next" href="{hymn_prefix}/{next_n}">NEXT →</a>'
         if next_n else '<span></span>'
     )
     body = (
         '<div class="hymn-nav-top">'
-        '<a href="." class="back-tag">← ALL HYMNS</a>'
+        f'<a href="{home_href}" class="back-tag">{back_label}</a>'
         f'<span class="song-num">#{number}</span>'
         "</div>\n"
         "<article>\n"
@@ -764,51 +836,12 @@ def render_hymn_page(number, title, verses, prev_n, next_n, key: str) -> str:
         f'<div class="verses">\n{verse_html}\n</div>\n'
         '<nav class="foot">\n'
         f"{prev_link}\n"
-        '<a class="home" href=".">INDEX</a>\n'
+        f'<a class="home" href="{home_href}">INDEX</a>\n'
         f"{next_link}\n"
         "</nav>"
     )
-    return page(f"{title} — Grace House Hymnal", body, key)
-
-
-def render_print_all(hymns, key: str) -> str:
-    """Render every hymn on one long page with page-breaks between them —
-    for printing the whole booklet at once."""
-    songs_html = []
-    for (number, _t, filepath) in hymns:
-        title, verses = parse_hymn(filepath)
-        verse_html = "\n".join(_verse_block_html(l, ls) for l, ls in verses)
-        songs_html.append(
-            '<section class="print-song">\n'
-            '<div class="print-song-head">'
-            f'<span>Grace House Hymnal</span>'
-            f'<span>#{number}</span>'
-            "</div>\n"
-            "<article>\n"
-            f'<span class="print-slug">Song #{number}</span>'
-            f"<h1>{escape(title)}</h1>\n"
-            "</article>\n"
-            f'<div class="verses">\n{verse_html}\n</div>\n'
-            "</section>"
-        )
-    all_html = "\n".join(songs_html)
-    # Screen intro (hidden on print) — shows a friendly "hit Cmd+P" note
-    screen_intro = (
-        '<div class="print-only-web" style="padding: 24px 0; border-bottom: 3px solid #0a0a0a; margin-bottom: 24px;">'
-        f'{BRAND_LOGO}'
-        '<div class="title-tag" style="margin-top: 14px;"><h1>PRINT BOOKLET</h1></div>'
-        '<p style="font-family:\'Special Elite\',monospace;font-size:14px;margin-top:16px;line-height:1.5;">'
-        f'All {len(hymns)} songs, formatted for printing. Each song gets its own page '
-        'with blank space above every lyric line for handwritten chords. '
-        'Press <strong>Cmd+P</strong> (or your browser\'s print menu) to print, '
-        'or use "Save as PDF" to keep a digital copy.'
-        '</p>'
-        '<p style="font-family:\'Special Elite\',monospace;font-size:12px;margin-top:12px;opacity:0.7;">'
-        '<a href=".">← back to hymnal</a>'
-        '</p>'
-        '</div>'
-    )
-    return page("Print Booklet — Grace House Hymnal", screen_intro + all_html, key)
+    title_suffix = " — Musicians" if musician else ""
+    return page(f"{title}{title_suffix} — Grace House Hymnal", body, key)
 
 
 def render_qr_page(url: str, have_png: bool, key: str) -> str:
@@ -911,10 +944,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "text/html; charset=utf-8",
             )
             return
-        if inner == "/print":
+        if inner == "/musician" or inner == "/musician/":
             hymns = load_hymns()
             self._send(
-                render_print_all(hymns, key).encode("utf-8"),
+                render_toc(hymns, key, musician=True).encode("utf-8"),
                 "text/html; charset=utf-8",
             )
             return
@@ -929,9 +962,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "text/html; charset=utf-8",
             )
             return
-        m = re.match(r"^/hymn/(\d+)$", inner)
+        # /hymn/N (public) and /musician/hymn/N (musician mirror) share
+        # everything except the show_chords flag and their link prefixes.
+        m = re.match(r"^(/musician)?/hymn/(\d+)$", inner)
         if m:
-            wanted = int(m.group(1))
+            musician = m.group(1) is not None
+            wanted = int(m.group(2))
             hymns = load_hymns()
             idx = next((i for i, (n, _, _) in enumerate(hymns) if n == wanted), None)
             if idx is None:
@@ -942,7 +978,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             prev_n = hymns[idx - 1][0] if idx > 0 else None
             next_n = hymns[idx + 1][0] if idx < len(hymns) - 1 else None
             self._send(
-                render_hymn_page(number, title, verses, prev_n, next_n, key).encode("utf-8"),
+                render_hymn_page(number, title, verses, prev_n, next_n, key, musician=musician).encode("utf-8"),
                 "text/html; charset=utf-8",
             )
             return
@@ -973,8 +1009,9 @@ def main():
     print(bar)
     print("  Grace House Hymnal is running")
     print(bar)
-    print(f"  On this Mac       :  http://localhost:{port}/{key}/")
-    print(f"  Print the QR code :  http://localhost:{port}/{key}/qr")
+    print(f"  Hymnal            :  http://localhost:{port}/{key}/")
+    print(f"  Musicians mirror  :  http://localhost:{port}/{key}/musician/")
+    print(f"  QR code viewer    :  http://localhost:{port}/{key}/qr")
     print()
     print(f"  Access key        :  {key}")
     print(f"  (edit access-key.txt to change; then regenerate QR)")
